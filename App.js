@@ -1,7 +1,7 @@
 import React from 'react';
 import { View, Text, SafeAreaView, StyleSheet, Image } from 'react-native';
 
-import { theme } from './assets';
+import { ThemeProvider, useTheme } from './theme.context';
 
 const styles = StyleSheet.create({
   container: {
@@ -44,29 +44,34 @@ const styles = StyleSheet.create({
 export default function App() {
   return (
     <SafeAreaView>
-      <View style={styles.container}>
-        <View style={styles.cardImageContainer}>
-          <CardImage cardId="2C" />
-          <CardImage cardId="2D" />
-          <CardImage cardId="2H" />
-          <CardImage cardId="2S" />
-        </View>
+      <ThemeProvider>
+        <View style={styles.container}>
+          <View style={styles.cardImageContainer}>
+            <ThemedCardImage cardId="2C" />
+            <ThemedCardImage cardId="2D" />
+            <ThemedCardImage cardId="2H" />
+            <ThemedCardImage cardId="2S" />
+          </View>
 
-        <View style={styles.colorsTextContainer}>
-          <Text style={styles.heading}>Colors</Text>
-          <TextColorBox colorId="primary" />
-          <TextColorBox colorId="secondary" />
+          <View style={styles.colorsTextContainer}>
+            <Text style={styles.heading}>Colors</Text>
+            <ThemedTextColorBox colorId="primary" />
+            <ThemedTextColorBox colorId="secondary" />
+          </View>
         </View>
-      </View>
+      </ThemeProvider>
     </SafeAreaView>
   );
 }
 
-function CardImage({ cardId }) {
+function ThemedCardImage({ cardId }) {
+  const theme = useTheme();
   return <Image source={theme[cardId]} style={styles.cardImage} />;
 }
 
-function TextColorBox({ colorId }) {
+function ThemedTextColorBox({ colorId }) {
+  const theme = useTheme();
+
   return (
     <View style={styles.textContainer}>
       <Text style={{ textTransform: 'capitalize' }}>
