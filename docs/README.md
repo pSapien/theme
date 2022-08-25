@@ -8,12 +8,14 @@ And here's what we did.
 
 Let's divide and conquer our feature into a more detailed list of requirements, then get it done.
 
-- Define our theme
-- Create theme context
+- [Setup](#setup)
+- [Define our theme](#define-our-theme)
+- [Create theme context](#create-theme-context)
+- [Download theme](#download-theme)
 
 Let's get into building exactly that.
 
-## The setup
+## Setup
 
 Let's set up a react-native project by using `react-native-cli`.
 
@@ -211,21 +213,24 @@ export function useUpdaterTheme() {
 Let's wrap our application with `ThemeProvider` which would enable the theme to be used in all of our components
 
 ```Javascript
-/App.js
+/index.js
 
-import { ThemeProvider, useTheme } from './theme.context';
+import React from 'react';
+import { AppRegistry } from 'react-native';
+import App from './App';
+import { name as appName } from './app.json';
+import { ThemeProvider } from './theme.context';
 
-export default function App() {
+AppRegistry.registerComponent(appName, () => Main);
+
+function Main() {
   return (
     <ThemeProvider>
-      <SafeAreaView>
-          <View style={styles.container}>
-            {/* same as before */}
-          </View>
-      </SafeAreaView>
+      <App />
     </ThemeProvider>
   );
 }
+
 ```
 
 - We could use theme via `useTheme` function inside our components
@@ -241,17 +246,18 @@ function ThemedCardImage({ cardId }) {
 
 function ThemedTextColorBox({ colorId }) {
   const theme = useTheme();
+  const color = theme[colorId];
 
- return (
+  return (
     <View style={styles.textContainer}>
       <Text style={{ textTransform: 'capitalize' }}>
-        {colorId} Color: {theme.primary}
+        {colorId} Color: {color}
       </Text>
       <View
         style={[
           styles.themeView,
           {
-            backgroundColor: theme.primary,
+            backgroundColor: color,
           },
         ]}
       />
@@ -259,3 +265,177 @@ function ThemedTextColorBox({ colorId }) {
   );
 }
 ```
+
+## Download theme
+
+- Now, comes the most exciting part. We need to download and use the theme in our app based on user preferences.
+  For that, we would need `react-native-fs` and `react-native-zip-archive`.
+
+1. [react-native-fs](https://github.com/itinance/react-native-fs/) : helps us to download and store/read the theme from the filesystem.
+2. [react-native-zip-archive](https://github.com/mockingbot/react-native-zip-archive) : helps us to unzip the downloaded theme assets.
+
+Let's install both of the packages and get it rolling!
+
+```
+yarn add react-native-fs react-native-zip-archive
+cd ios && pod install
+cd ../ && yarn ios
+```
+
+- Downloading the theme
+
+1. We download the zip file which contains all the assets and a manifest file.
+2. We unzip the file and store the contents of the file in the file system.
+3. We read from the manifest file and load all our assets
+
+The content of the file looks like this
+
+```
+├── assets
+│ ├── 2C.png
+│ ├── 2D.png
+│ ├── 2H.png
+│ └── 2S.png
+└── manifest.json
+```
+
+> Let's write the code to download, unzip and store the theme assets.
+
+```Javascript
+/theme.downloader.js
+
+import RNFS from 'react-native-fs';
+import { unzip } from 'react-native-zip-archive';
+
+const ZIP_DOWNLOAD_PATH = `${RNFS.TemporaryDirectoryPath}/theme.zip`;
+const THEME_ASSET_UNZIPPED_PATH = `${RNFS.DocumentDirectoryPath}/theme`;
+
+export async function downloadAndStoreTheme(link) {
+  try {
+    /**  download the zip file which contains all the theme information */
+    await RNFS.downloadFile({
+      fromUrl: link,
+      toFile: ZIP_DOWNLOAD_PATH,
+      begin: () => {},
+      background: true,
+      progressInterval: 0,
+      progress: ({ bytesWritten, contentLength, jobId }) => {
+        const downloadProgress = Math.floor((bytesWritten / contentLength) * 100);
+        console.log(downloadProgress);
+      },
+    }).promise;
+
+    /** create the folder where we keep all our unzipped assets */
+    await RNFS.mkdir(THEME_ASSET_UNZIPPED_PATH);
+
+    /** unzip it, extract and store all the assets */
+    await unzip(ZIP_DOWNLOAD_PATH, THEME_ASSET_UNZIPPED_PATH);
+  } catch (err) {
+    console.log('this is the erro', err.message);
+    throw new Error(err.message);
+  } finally {
+    /** when everything is done, delete the zip file  */
+    RNFS.unlink(ZIP_DOWNLOAD_PATH);
+  }
+}
+```
+
+> And we could use the function inside our application. All we need is the download link.
+
+```Javascript
+/app.js
+
+import { loadTheme, downloadAndStoreTheme } from './theme.downloader';
+
+async function downloadTheme() {
+  await downloadAndStoreTheme(THEME_DOWNLOAD_LINK);
+}
+```
+
+> After downloading the assets, we read the manifest and load the theme assets from it.
+
+The content of our manifest file looks like this
+
+```JSON
+{
+  "name": "Bollywood",
+  "version": "1.0.0",
+  "assets": {
+    "primary": "#723C29",
+    "secondary": "#4A2B1F",
+    "2S": "/assets/2S.png",
+    "2H": "/assets/2H.png",
+    "2C": "/assets/2C.png",
+    "2D": "/assets/2D.png"
+  }
+}
+```
+
+> There are couple of reasons behind using manifest file.
+
+1. The definition of the theme is contained in this file. We could describe the version of our theme, in the case of any compatibility issues.
+2. We define all our assets and path on it which makes it easy to just use `assets` property directly while loading the theme.
+
+- Loading the theme
+
+```Javascript
+/theme.downloader.js
+
+export async function loadTheme(id) {
+  try {
+    /** get the selected theme directory from the folder */
+    const selectedThemeDir = await RNFS.readDir(THEME_ASSET_UNZIPPED_PATH).find(p => p.name === id);
+
+    /** extract the manifest content file and read the assets paths */
+    const content = await RNFS.readFile(selectedThemeDir.path + '/manifest.json');
+    const { assets } = JSON.parse(content);
+
+    /** resolve the asset path directory with respect to its folder */
+    return resolveAssetPath(assets, selectedThemeDir.path);
+  } catch (err) {
+    throw new Error(err.message);
+  }
+}
+
+/**
+ * resolves the path of the assets with respect to the directory structure
+ * converts
+ * {
+ *   "2S": "/assets/2S.png",
+ * }
+ * to
+ * {
+ *  "2S": "file://{RN_DOCUMENT_PATH}/theme/assets/2S.png",
+ * }
+ */
+function resolveAssetPath(assetsDict, dirPrefix) {
+  const resolved = {};
+
+  function resolve(asset) {
+    /** only resolve paths */
+    if (asset.startsWith('/') || asset.startsWith('./')) {
+      return 'file://' + dirPrefix + asset;
+    }
+
+    return asset;
+  }
+
+  for (const assetKey in assetsDict) {
+    const asset = assetsDict[assetKey];
+
+    if (Array.isArray(asset)) {
+      resolved[assetKey] = asset.map(resolve);
+    } else if (typeof asset === 'object') {
+      resolved[assetKey] = resolveAssetPath(asset, dirPrefix);
+    } else {
+      resolved[assetKey] = resolve(asset);
+    }
+  }
+
+  return resolved;
+}
+```
+
+The output will now look like this
+
+![Basic App](./theme.gif)

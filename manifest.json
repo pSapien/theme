@@ -1,0 +1,12 @@
+{
+  "name": "Bollywood",
+  "version": "1.0.0",
+  "assets": {
+    "primary": "#723C29",
+    "secondary": "#4A2B1F",
+    "2S": "/assets/2S.png",
+    "2H": "/assets/2H.png",
+    "2C": "/assets/2C.png",
+    "2D": "/assets/2D.png"
+  }
+}

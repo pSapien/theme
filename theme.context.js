@@ -26,3 +26,7 @@ export function useUpdaterTheme() {
 
   return ctx.setTheme;
 }
+
+export function getDefaultTheme() {
+  return theme;
+}
