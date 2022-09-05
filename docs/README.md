@@ -439,3 +439,7 @@ function resolveAssetPath(assetsDict, dirPrefix) {
 The output will now look like this
 
 ![Basic App](./theme.gif)
+
+In our app, the process looks like this
+
+![Marriage App](./Theme-new.gif)
